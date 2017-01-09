@@ -27,6 +27,22 @@ def fatal(msg):
     print >>sys.stderr, msg
     sys.exit(1)
 
+def pullcommit(commit,remote,repo,sourceref):
+    pulloptionsdict = GLib.VariantDict.new()
+    variant_type_string = GLib.VariantType.new('s')
+
+    pulloptionscommit = GLib.Variant.new_array(variant_type_string, [GLib.Variant.new_string(commit)])
+    pulloptionsdict.insert_value('override-commit-ids', pulloptionscommit)
+    pulloptionsref = GLib.Variant.new_array(variant_type_string, [GLib.Variant.new_string(sourceref)])
+    pulloptionsdict.insert_value('refs', pulloptionsref)
+    pulloptions = pulloptionsdict.end()
+
+    try:
+        repo.pull_with_options (remote, pulloptions, None, None)
+    except GLib.Error:
+        fatal("Unable to pull commit {} from {}".format(commit,remote))
+
+
 parser = argparse.ArgumentParser(prog=sys.argv[0])
 parser.add_argument("--ignore-no-previous-promotion", help="Releases file",
 		    action='store_true')
@@ -34,6 +50,8 @@ parser.add_argument("--repo", help="Repo path",
                     action='store', required=True)
 parser.add_argument("--releases", help="Releases file",
 		    action='store', required=True)
+parser.add_argument("--remote", help="Releases file",
+		    action='store')
 
 args = parser.parse_args()
 
@@ -43,6 +61,14 @@ r.open(None)
 releasedata = yaml.load(open(args.releases))
 baseref = releasedata['baseref']
 changed = False
+
+if args.remote:
+    remote = args.remote
+elif 'remote' in releasedata:
+    remote = releasedata['remote']
+else:
+    remote = False
+
 for (name,newcommit) in releasedata['releases'].iteritems():
     ref = baseref + name
     [_, current] = r.resolve_rev(ref, True)
@@ -67,7 +93,21 @@ for (name,newcommit) in releasedata['releases'].iteritems():
                 print("No changes in {} = {}, promoted from {}".format(ref, current, currentpromoted))
                 continue
         print("Previously: {} = {}, promoted from {}".format(ref, current, currentpromoted))
-    _,newcommitdata,_ = r.load_commit(newcommit)
+    try:
+        _,newcommitdata,_ = r.load_commit(newcommit)
+    except GLib.Error:
+        msg = "Commit {} not found locally".format(newcommit)
+        if remote:
+            print(msg)
+            print("Attempting to pull from remote " + remote)
+            if 'sourceref' in releasedata:
+                sourceref = releasedata['sourceref']
+            else:
+                sourceref = baseref + name
+            pullcommit(newcommit,remote,r,sourceref)
+            _,newcommitdata,_ = r.load_commit(newcommit)
+        else:
+            fatal(msg)
     _,newcommitroot,_ = r.read_commit(newcommit, None)
     newcommitmeta = newcommitdata.get_child_value(0)
     versionv = newcommitmeta.lookup_value("version", GLib.VariantType.new("s"))
