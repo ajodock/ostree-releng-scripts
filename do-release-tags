@@ -93,9 +93,8 @@ for (name,newcommit) in releasedata['releases'].iteritems():
                 print("No changes in {} = {}, promoted from {}".format(ref, current, currentpromoted))
                 continue
         print("Previously: {} = {}, promoted from {}".format(ref, current, currentpromoted))
-    try:
-        _,newcommitdata,_ = r.load_commit(newcommit)
-    except GLib.Error:
+    _,havecommit = r.has_object(OSTree.ObjectType.COMMIT,newcommit)
+    if not havecommit:
         msg = "Commit {} not found locally".format(newcommit)
         if remote:
             print(msg)
@@ -105,9 +104,9 @@ for (name,newcommit) in releasedata['releases'].iteritems():
             else:
                 sourceref = baseref + name
             pullcommit(newcommit,remote,r,sourceref)
-            _,newcommitdata,_ = r.load_commit(newcommit)
         else:
             fatal(msg)
+    _,newcommitdata,_ = r.read_commit(newcommit)
     _,newcommitroot,_ = r.read_commit(newcommit, None)
     newcommitmeta = newcommitdata.get_child_value(0)
     versionv = newcommitmeta.lookup_value("version", GLib.VariantType.new("s"))
