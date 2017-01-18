@@ -50,7 +50,7 @@ parser.add_argument("--repo", help="Repo path",
                     action='store', required=True)
 parser.add_argument("--releases", help="Releases file",
 		    action='store', required=True)
-parser.add_argument("--remote", help="Releases file",
+parser.add_argument("--remote", help="Remote name",
 		    action='store')
 
 args = parser.parse_args()
